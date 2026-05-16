@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#1a4d2e"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Jurnal Kebun"/>
+  <title>Jurnal Kebun</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body {
+      background: #f0ede4;
+      font-family: Georgia, 'Times New Roman', serif;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+    input, textarea, button, select { font-family: inherit; }
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ─── Data ─────────────────────────────────────────────────────────────────
+const DEFAULT_ACTIVITIES = [
+  { id: "tanam",   label: "Tanam",   emoji: "🌱", color: "#4a7c59" },
+  { id: "pruning", label: "Pruning", emoji: "✂️", color: "#2e7d6e" },
+  { id: "pupuk",   label: "Pupuk",   emoji: "🌿", color: "#8b6914" },
+  { id: "panen",   label: "Panen",   emoji: "🍈", color: "#c4780a" },
+  { id: "semprot", label: "Semprot", emoji: "🧴", color: "#7b4d8e" },
+  { id: "lainnya", label: "Lainnya", emoji: "📝", color: "#5a6472" },
+];
+
+const PRESETS = {
+  melon: {
+    name: "Melon Hidroponik", emoji: "🍈", color: "#1a4d2e",
+    activities: DEFAULT_ACTIVITIES,
+  },
+  selada: {
+    name: "Selada Hidroponik", emoji: "🥬", color: "#2d6a1e",
+    activities: [
+      { id: "semai",   label: "Semai",        emoji: "🌿", color: "#3a7c2a" },
+      { id: "pindah",  label: "Pindah Tanam", emoji: "🪴", color: "#4a7c59" },
+      { id: "pupuk",   label: "Nutrisi",      emoji: "🧪", color: "#8b6914" },
+      { id: "panen",   label: "Panen",        emoji: "🥬", color: "#2d7a2e" },
+      { id: "semprot", label: "Semprot",      emoji: "🧴", color: "#7b4d8e" },
+      { id: "lainnya", label: "Lainnya",      emoji: "📝", color: "#5a6472" },
+    ],
+  },
+  tomat: {
+    name: "Tomat", emoji: "🍅", color: "#8b2020",
+    activities: [
+      { id: "tanam",   label: "Tanam",   emoji: "🌱", color: "#4a7c59" },
+      { id: "pruning", label: "Pruning", emoji: "✂️", color: "#2e7d6e" },
+      { id: "pupuk",   label: "Pupuk",   emoji: "🌿", color: "#8b6914" },
+      { id: "ikat",    label: "Ikat",    emoji: "🪢", color: "#7a5c2e" },
+      { id: "panen",   label: "Panen",   emoji: "🍅", color: "#c4320a" },
+      { id: "lainnya", label: "Lainnya", emoji: "📝", color: "#5a6472" },
+    ],
+  },
+};
+
+const EMOJI_OPTIONS = ["🌱","🍅","🥬","🍈","🌽","🫑","🥕","🌿","🫛","🥦","🧅","🧄","🍓","🫐","🍇","🍋","🌾","🪴","🌻","🌼"];
+const COLOR_OPTIONS  = ["#1a4d2e","#2d6a1e","#8b2020","#7a5c2e","#1a3d6e","#5a2d7a","#8b6914","#2e7d6e","#6e2e2e","#2e4d6e","#4a2e7a","#6e4a1a"];
+const ACT_COLORS     = ["#4a7c59","#2e7d6e","#8b6914","#c4780a","#7b4d8e","#5a6472","#3a7ca5","#c4320a","#7a5c2e","#2d7a2e"];
+const ACT_EMOJIS     = ["🌱","✂️","🌿","🍈","🧴","📝","🪴","🧪","🪢","💧","🌾","🫛","🔬","📏","⚗️","🌡️"];
+
+const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+const DAYS   = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
+
+const getDaysInMonth = (y,m) => new Date(y,m+1,0).getDate();
+const getFirstDay    = (y,m) => new Date(y,m,1).getDay();
+const toKey = (y,m,d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+const fmtDate = s => { const [y,m,d]=s.split("-").map(Number); return `${d} ${MONTHS[m-1]} ${y}`; };
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const EMPTY_FORM = { type:"", tanaman:"", catatan:"", waktu:"06:00" };
+
+// ─── App ──────────────────────────────────────────────────────────────────
+function App() {
+  const [journals, setJournals] = useState(() => {
+    try { const s=JSON.parse(localStorage.getItem("farmjournals_v2")||"null"); if(s) return s; } catch{}
+    return { j_melon:{ id:"j_melon", name:"Melon Hidroponik", emoji:"🍈", color:"#1a4d2e", activities:PRESETS.melon.activities, entries:{} } };
+  });
+  const [activeJournalId, setActiveJournalId] = useState(() => {
+    try { const s=JSON.parse(localStorage.getItem("farmjournals_v2")||"null"); if(s) return Object.keys(s)[0]; } catch{}
+    return "j_melon";
+  });
+  const [screen, setScreen]     = useState("journal");
+  const [activeTab, setActiveTab] = useState("kalender");
+  const today = new Date();
+  const [viewYear,  setViewYear]  = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [selectedDate, setSelectedDate] = useState(toKey(today.getFullYear(),today.getMonth(),today.getDate()));
+  const [showForm,    setShowForm]    = useState(false);
+  const [form,        setForm]        = useState(EMPTY_FORM);
+  const [editingId,   setEditingId]   = useState(null);
+  const [editingDate, setEditingDate] = useState(null);
+  const [wiz,  setWiz]  = useState({ step:1, preset:null, name:"", emoji:"🌱", color:COLOR_OPTIONS[0], activities:[] });
+  const [mgmt, setMgmt] = useState({ newActLabel:"", newActEmoji:"🌱", newActColor:ACT_COLORS[0] });
+
+  useEffect(()=>{ try{localStorage.setItem("farmjournals_v2",JSON.stringify(journals));}catch{} },[journals]);
+
+  const journal    = journals[activeJournalId] || Object.values(journals)[0];
+  if (!journal) return null;
+  const activities = journal.activities;
+  const entries    = journal.entries || {};
+  const jc         = journal.color;
+
+  const getAct = id => activities.find(a=>a.id===id) || {label:"Lainnya",emoji:"📝",color:"#5a6472"};
+  const patch  = (id,p) => setJournals(prev=>({...prev,[id]:{...prev[id],...p}}));
+
+  const openAdd = () => { setEditingId(null); setEditingDate(null); setForm({...EMPTY_FORM,type:activities[0]?.id||""}); setShowForm(true); };
+  const openEdit= (entry,dk) => { setEditingId(entry.id); setEditingDate(dk); setForm({type:entry.type,tanaman:entry.tanaman,catatan:entry.catatan,waktu:entry.waktu}); setShowForm(true); };
+  const saveEntry = () => {
+    if (!form.tanaman.trim()) return;
+    if (editingId) {
+      patch(activeJournalId,{entries:{...entries,[editingDate]:(entries[editingDate]||[]).map(e=>e.id===editingId?{...e,...form}:e)}});
+    } else {
+      patch(activeJournalId,{entries:{...entries,[selectedDate]:[...(entries[selectedDate]||[]),{...form,id:uid()}]}});
+    }
+    setForm(EMPTY_FORM); setEditingId(null); setEditingDate(null); setShowForm(false);
+  };
+  const delEntry = (date,id) => patch(activeJournalId,{entries:{...entries,[date]:(entries[date]||[]).filter(e=>e.id!==id)}});
+
+  const daysInMonth  = getDaysInMonth(viewYear,viewMonth);
+  const firstDay     = getFirstDay(viewYear,viewMonth);
+  const [selYear,selMonth,selDay] = selectedDate.split("-").map(Number);
+  const selectedEntries = entries[selectedDate] || [];
+  const getEntryTypes = d => [...new Set((entries[toKey(viewYear,viewMonth,d)]||[]).map(e=>e.type))].slice(0,3);
+  const isToday    = d => viewYear===today.getFullYear()&&viewMonth===today.getMonth()&&d===today.getDate();
+  const isSelected = d => selectedDate===toKey(viewYear,viewMonth,d);
+  const prevMonth  = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); };
+  const nextMonth  = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); };
+
+  const allEntries = Object.entries(entries).flatMap(([date,list])=>(list||[]).map(e=>({...e,date}))).sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  const totalByType = {};
+  allEntries.forEach(e=>{totalByType[e.type]=(totalByType[e.type]||0)+1;});
+
+  const startNew = () => { setWiz({step:1,preset:null,name:"",emoji:"🌱",color:COLOR_OPTIONS[0],activities:[...DEFAULT_ACTIVITIES]}); setScreen("new_journal"); };
+  const applyPreset = k => { const p=PRESETS[k]; setWiz(w=>({...w,preset:k,name:p.name,emoji:p.emoji,color:p.color,activities:p.activities.map(a=>({...a}))})); };
+  const createJournal = () => {
+    if(!wiz.name.trim()) return;
+    const id="j_"+uid();
+    setJournals(prev=>({...prev,[id]:{id,name:wiz.name.trim(),emoji:wiz.emoji,color:wiz.color,activities:wiz.activities,entries:{}}}));
+    setActiveJournalId(id); setActiveTab("kalender"); setScreen("journal");
+  };
+  const deleteJournal = id => {
+    if(Object.keys(journals).length<=1) return;
+    setJournals(prev=>{const n={...prev};delete n[id];return n;});
+    setActiveJournalId(Object.keys(journals).find(k=>k!==id));
+    setScreen("journal");
+  };
+  const addActMgmt = () => {
+    if(!mgmt.newActLabel.trim()) return;
+    patch(activeJournalId,{activities:[...activities,{id:uid(),label:mgmt.newActLabel.trim(),emoji:mgmt.newActEmoji,color:mgmt.newActColor}]});
+    setMgmt(m=>({...m,newActLabel:"",newActEmoji:"🌱",newActColor:ACT_COLORS[0]}));
+  };
+  const addActWiz = () => {
+    if(!mgmt.newActLabel.trim()) return;
+    setWiz(w=>({...w,activities:[...w.activities,{id:uid(),label:mgmt.newActLabel.trim(),emoji:mgmt.newActEmoji,color:mgmt.newActColor}]}));
+    setMgmt(m=>({...m,newActLabel:"",newActEmoji:"🌱",newActColor:ACT_COLORS[0]}));
+  };
+
+  // ── Shared styles ──
+  const s = {
+    card:  { background:"#fff", borderRadius:12, padding:"11px 13px", boxShadow:"0 2px 10px rgba(0,0,0,0.06)" },
+    input: { width:"100%", padding:"9px 12px", border:"1.5px solid #e0d8c8", borderRadius:10, fontSize:14, background:"#fff", boxSizing:"border-box", outline:"none", fontFamily:"Georgia,serif" },
+    label: { fontSize:12, color:"#666", display:"block", marginBottom:4 },
+    pill:  (color) => ({ background:color+"20", color, borderRadius:20, padding:"1px 8px", fontSize:11, fontWeight:"bold" }),
+    iconBtn: (bg,color) => ({ background:bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13, color, display:"flex", alignItems:"center", justifyContent:"center" }),
+  };
+
+  // EntryCard
+  const EntryCard = ({entry, dateKey}) => {
+    const at = getAct(entry.type);
+    return (
+      <div style={{...s.card, borderLeft:`4px solid ${at.color}`, display:"flex", alignItems:"flex-start", gap:10}}>
+        <span style={{fontSize:20,flexShrink:0}}>{at.emoji}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap"}}>
+            <span style={s.pill(at.color)}>{at.label}</span>
+            <span style={{fontSize:11,color:"#999"}}>⏰ {entry.waktu}</span>
+          </div>
+          <p style={{margin:"0 0 2px",fontWeight:"bold",fontSize:13,color:"#2c2416"}}>{entry.tanaman}</p>
+          {entry.catatan && <p style={{margin:0,fontSize:12,color:"#666",fontStyle:"italic"}}>{entry.catatan}</p>}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+          <button onClick={()=>openEdit(entry,dateKey)} style={s.iconBtn(jc+"18",jc)}>✏️</button>
+          <button onClick={()=>delEntry(dateKey,entry.id)} style={s.iconBtn("rgba(200,50,50,0.07)","#c23232")}>✕</button>
+        </div>
+      </div>
+    );
+  };
+
+  // ActPicker for form and wizard
+  const ActPicker = ({value, onChange, actList}) => (
+    <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(actList.length,3)},1fr)`,gap:6}}>
+      {actList.map(at=>(
+        <button key={at.id} onClick={()=>onChange(at.id)} style={{
+          padding:"8px 4px", border:`2px solid ${value===at.id?at.color:"#e0d8c8"}`,
+          borderRadius:10, background:value===at.id?at.color+"15":"#fff",
+          cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2,
+        }}>
+          <span style={{fontSize:17}}>{at.emoji}</span>
+          <span style={{fontSize:10,color:value===at.id?at.color:"#666",fontWeight:value===at.id?"bold":"normal",textAlign:"center"}}>{at.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+
+  // New activity adder panel
+  const ActAdder = ({onAdd}) => (
+    <div style={{background:"#fff",borderRadius:12,padding:12,border:"1.5px dashed #c0b8a8",marginBottom:14}}>
+      <p style={{margin:"0 0 8px",fontSize:12,color:"#888"}}>+ Tambah Aktivitas</p>
+      <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
+        {ACT_EMOJIS.map(em=>(
+          <button key={em} onClick={()=>setMgmt(m=>({...m,newActEmoji:em}))} style={{width:30,height:30,fontSize:15,border:`1.5px solid ${mgmt.newActEmoji===em?"#1a4d2e":"#e0d8c8"}`,borderRadius:6,background:mgmt.newActEmoji===em?"#1a4d2e18":"#fff",cursor:"pointer"}}>{em}</button>
+        ))}
+      </div>
+      <input value={mgmt.newActLabel} onChange={e=>setMgmt(m=>({...m,newActLabel:e.target.value}))}
+        placeholder="Nama aktivitas..."
+        style={{...s.input,marginBottom:8,background:"#faf7f0"}}/>
+      <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+        {ACT_COLORS.map(c=>(
+          <button key={c} onClick={()=>setMgmt(m=>({...m,newActColor:c}))} style={{width:26,height:26,borderRadius:"50%",background:c,cursor:"pointer",border:mgmt.newActColor===c?"2.5px solid #2c2416":"2.5px solid transparent"}}/>
+        ))}
+      </div>
+      <button onClick={onAdd} style={{width:"100%",padding:"8px",border:"none",borderRadius:8,background:"#1a4d2e",color:"#fff",fontSize:12,cursor:"pointer"}}>+ Tambahkan</button>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f0ede4",color:"#2c2416"}}>
+
+      {/* Header */}
+      <div style={{background:`linear-gradient(135deg,${jc},${jc}cc)`,padding:"env(safe-area-inset-top,0px) 20px 14px",paddingTop:`calc(env(safe-area-inset-top,0px) + 16px)`,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle at 80% 20%,rgba(255,255,255,0.08) 0%,transparent 50%)"}}/>
+        <div style={{position:"relative",maxWidth:480,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:24}}>{journal.emoji}</span>
+            <div>
+              <h1 style={{margin:0,color:"#fff",fontSize:17,fontWeight:"bold"}}>{journal.name}</h1>
+              <p style={{margin:0,color:"rgba(255,255,255,0.65)",fontSize:11,fontStyle:"italic"}}>Jurnal Pertanian</p>
+            </div>
+          </div>
+          <button onClick={()=>setScreen("home")} style={{background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:20,padding:"6px 12px",color:"#fff",fontSize:11,cursor:"pointer"}}>🌿 Jurnal Lain</button>
+        </div>
+      </div>
+
+      {/* ══ HOME ══ */}
+      {screen==="home" && (
+        <div style={{maxWidth:480,margin:"0 auto",padding:16}}>
+          <h2 style={{fontSize:16,margin:"0 0 14px"}}>Pilih Jurnal</h2>
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+            {Object.values(journals).map(j=>(
+              <div key={j.id} style={{...s.card,borderLeft:`5px solid ${j.color}`,display:"flex",alignItems:"center",gap:12,padding:"14px 16px"}}>
+                <span style={{fontSize:26}}>{j.emoji}</span>
+                <div style={{flex:1}}>
+                  <p style={{margin:0,fontWeight:"bold",fontSize:14}}>{j.name}</p>
+                  <p style={{margin:0,fontSize:11,color:"#999"}}>{Object.values(j.entries||{}).flat().length} catatan</p>
+                </div>
+                <button onClick={()=>{setActiveJournalId(j.id);setActiveTab("kalender");setScreen("journal");}} style={{background:j.color+"18",border:`1.5px solid ${j.color}40`,borderRadius:10,padding:"6px 14px",color:j.color,fontSize:12,fontWeight:"bold",cursor:"pointer"}}>Buka</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={startNew} style={{width:"100%",padding:13,border:"2px dashed #b0a898",borderRadius:14,background:"transparent",color:"#888",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:18}}>＋</span> Buat Jurnal Baru
+          </button>
+        </div>
+      )}
+
+      {/* ══ NEW JOURNAL ══ */}
+      {screen==="new_journal" && (
+        <div style={{maxWidth:480,margin:"0 auto",padding:16}}>
+          <div style={{display:"flex",gap:6,marginBottom:20}}>
+            {[1,2,3].map(n=><div key={n} style={{flex:1,height:4,borderRadius:2,background:wiz.step>=n?"#1a4d2e":"#ddd",transition:"background 0.3s"}}/>)}
+          </div>
+
+          {wiz.step===1 && (
+            <div>
+              <h2 style={{margin:"0 0 6px",fontSize:17}}>Pilih Template</h2>
+              <p style={{margin:"0 0 14px",fontSize:12,color:"#888"}}>Mulai dari template atau buat dari awal</p>
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+                {Object.entries(PRESETS).map(([key,p])=>(
+                  <button key={key} onClick={()=>{applyPreset(key);setWiz(w=>({...w,step:2}));}} style={{background:"#fff",border:`2px solid #e0d8c8`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>
+                    <span style={{fontSize:26}}>{p.emoji}</span>
+                    <div><p style={{margin:0,fontWeight:"bold",fontSize:14}}>{p.name}</p><p style={{margin:0,fontSize:11,color:"#999"}}>{p.activities.map(a=>a.label).join(", ")}</p></div>
+                  </button>
+                ))}
+                <button onClick={()=>setWiz(w=>({...w,preset:null,step:2}))} style={{background:"#fff",border:"2px dashed #c0b8a8",borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{fontSize:26}}>✏️</span>
+                  <div style={{textAlign:"left"}}><p style={{margin:0,fontWeight:"bold",fontSize:14}}>Buat Sendiri</p><p style={{margin:0,fontSize:11,color:"#999"}}>Tentukan nama, ikon, dan aktivitas sendiri</p></div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {wiz.step===2 && (
+            <div>
+              <h2 style={{margin:"0 0 14px",fontSize:17}}>Identitas Jurnal</h2>
+              <div style={{marginBottom:14}}>
+                <label style={s.label}>Ikon Tanaman</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {EMOJI_OPTIONS.map(em=>(
+                    <button key={em} onClick={()=>setWiz(w=>({...w,emoji:em}))} style={{width:38,height:38,fontSize:20,border:`2px solid ${wiz.emoji===em?"#1a4d2e":"#e0d8c8"}`,borderRadius:8,background:wiz.emoji===em?"#1a4d2e15":"#fff",cursor:"pointer"}}>{em}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{marginBottom:14}}>
+                <label style={s.label}>Nama Jurnal *</label>
+                <input value={wiz.name} onChange={e=>setWiz(w=>({...w,name:e.target.value}))} placeholder="cth: Selada NFT, Kangkung Aeroponik..." style={s.input}/>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={s.label}>Warna Tema</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {COLOR_OPTIONS.map(c=>(
+                    <button key={c} onClick={()=>setWiz(w=>({...w,color:c}))} style={{width:34,height:34,borderRadius:"50%",background:c,cursor:"pointer",border:wiz.color===c?"3px solid #2c2416":"3px solid transparent",boxShadow:wiz.color===c?"0 0 0 2px #fff":"none"}}/>
+                  ))}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setWiz(w=>({...w,step:1}))} style={{flex:1,padding:11,border:"1.5px solid #e0d8c8",borderRadius:12,background:"#fff",color:"#666",cursor:"pointer",fontSize:13}}>← Kembali</button>
+                <button onClick={()=>{if(wiz.name.trim())setWiz(w=>({...w,step:3}));}} style={{flex:2,padding:11,border:"none",borderRadius:12,background:wiz.name.trim()?`linear-gradient(135deg,${wiz.color},${wiz.color}99)`:"#ccc",color:"#fff",fontWeight:"bold",cursor:wiz.name.trim()?"pointer":"not-allowed",fontSize:13}}>Selanjutnya →</button>
+              </div>
+            </div>
+          )}
+
+          {wiz.step===3 && (
+            <div>
+              <h2 style={{margin:"0 0 4px",fontSize:17}}>Jenis Aktivitas</h2>
+              <p style={{margin:"0 0 12px",fontSize:12,color:"#888"}}>Sesuaikan untuk {wiz.name}</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+                {wiz.activities.map((a,idx)=>(
+                  <div key={a.id} style={{...s.card,display:"flex",alignItems:"center",gap:8,borderLeft:`4px solid ${a.color}`}}>
+                    <span style={{fontSize:16}}>{a.emoji}</span>
+                    <span style={{flex:1,fontSize:13,fontWeight:"bold"}}>{a.label}</span>
+                    <button onClick={()=>setWiz(w=>({...w,activities:w.activities.filter((_,i)=>i!==idx)}))} style={s.iconBtn("rgba(200,50,50,0.07)","#c23232")}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <ActAdder onAdd={addActWiz}/>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setWiz(w=>({...w,step:2}))} style={{flex:1,padding:11,border:"1.5px solid #e0d8c8",borderRadius:12,background:"#fff",color:"#666",cursor:"pointer",fontSize:13}}>← Kembali</button>
+                <button onClick={createJournal} style={{flex:2,padding:11,border:"none",borderRadius:12,background:`linear-gradient(135deg,${wiz.color},${wiz.color}99)`,color:"#fff",fontWeight:"bold",cursor:"pointer",fontSize:13}}>✅ Buat Jurnal</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ MANAGE ══ */}
+      {screen==="manage_journal" && (
+        <div style={{maxWidth:480,margin:"0 auto",padding:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button onClick={()=>setScreen("journal")} style={{background:"rgba(0,0,0,0.06)",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>←</button>
+            <h2 style={{margin:0,fontSize:16}}>Kelola: {journal.name}</h2>
+          </div>
+          <h3 style={{margin:"0 0 10px",fontSize:13,color:"#666"}}>Jenis Aktivitas</h3>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+            {activities.map(a=>(
+              <div key={a.id} style={{...s.card,display:"flex",alignItems:"center",gap:8,borderLeft:`4px solid ${a.color}`}}>
+                <span style={{fontSize:16}}>{a.emoji}</span>
+                <span style={{flex:1,fontSize:13,fontWeight:"bold"}}>{a.label}</span>
+                <button onClick={()=>patch(activeJournalId,{activities:activities.filter(x=>x.id!==a.id)})} style={s.iconBtn("rgba(200,50,50,0.07)","#c23232")}>✕</button>
+              </div>
+            ))}
+          </div>
+          <ActAdder onAdd={addActMgmt}/>
+          {Object.keys(journals).length>1 && (
+            <button onClick={()=>{if(window.confirm(`Hapus jurnal "${journal.name}"? Semua data hilang.`))deleteJournal(activeJournalId);}} style={{width:"100%",padding:11,border:"1.5px solid #c23232",borderRadius:12,background:"rgba(200,50,50,0.06)",color:"#c23232",fontSize:13,cursor:"pointer"}}>🗑️ Hapus Jurnal Ini</button>
+          )}
+        </div>
+      )}
+
+      {/* ══ JOURNAL ══ */}
+      {screen==="journal" && (
+        <div style={{maxWidth:480,margin:"0 auto",padding:"0 16px"}}>
+          {/* Tabs */}
+          <div style={{display:"flex",gap:0,marginTop:14,marginBottom:14,background:"#fff",borderRadius:12,padding:4,boxShadow:"0 2px 12px rgba(0,0,0,0.08)"}}>
+            {[{id:"kalender",label:"📅 Kalender"},{id:"riwayat",label:"📋 Riwayat"},{id:"statistik",label:"📊 Statistik"},{id:"pengaturan",label:"⚙️"}].map(tab=>(
+              <button key={tab.id} onClick={()=>{ if(tab.id==="pengaturan") setScreen("manage_journal"); else setActiveTab(tab.id); }} style={{
+                flex:tab.id==="pengaturan"?"0 0 36px":1, padding:"9px 4px", border:"none", borderRadius:9,
+                background:activeTab===tab.id?`linear-gradient(135deg,${jc},${jc}99)`:"transparent",
+                color:activeTab===tab.id?"#fff":"#666", fontSize:12, fontWeight:activeTab===tab.id?"bold":"normal", cursor:"pointer",
+              }}>{tab.label}</button>
+            ))}
+          </div>
+
+          {/* KALENDER */}
+          {activeTab==="kalender" && (
+            <div>
+              <div style={{background:"#fff",borderRadius:16,padding:16,boxShadow:"0 2px 16px rgba(0,0,0,0.08)",marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <button onClick={prevMonth} style={{background:jc+"18",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:jc}}>‹</button>
+                  <h2 style={{margin:0,fontSize:15,fontWeight:"bold"}}>{MONTHS[viewMonth]} {viewYear}</h2>
+                  <button onClick={nextMonth} style={{background:jc+"18",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:jc}}>›</button>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+                  {DAYS.map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:"#999",fontWeight:"bold",padding:"3px 0"}}>{d}</div>)}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                  {Array(firstDay).fill(null).map((_,i)=><div key={"e"+i}/>)}
+                  {Array(daysInMonth).fill(null).map((_,i)=>{
+                    const day=i+1, types=getEntryTypes(day), sel=isSelected(day), td=isToday(day);
+                    return (
+                      <button key={day} onClick={()=>setSelectedDate(toKey(viewYear,viewMonth,day))} style={{
+                        aspectRatio:"1", border:sel?`2px solid ${jc}`:td?"2px solid #c4780a":"2px solid transparent",
+                        borderRadius:10, background:sel?`linear-gradient(135deg,${jc},${jc}99)`:td?"rgba(196,120,10,0.12)":"rgba(0,0,0,0.02)",
+                        cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1, padding:2,
+                      }}>
+                        <span style={{fontSize:12,fontWeight:td||sel?"bold":"normal",color:sel?"#fff":td?"#c4780a":"#2c2416"}}>{day}</span>
+                        {types.length>0 && <div style={{display:"flex",gap:1}}>{types.map(t=><span key={t} style={{fontSize:7}}>{getAct(t).emoji}</span>)}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <h3 style={{margin:0,fontSize:14}}>{selDay} {MONTHS[selMonth-1]} {selYear}</h3>
+                <button onClick={openAdd} style={{background:`linear-gradient(135deg,${jc},${jc}99)`,color:"#fff",border:"none",borderRadius:20,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:"bold",boxShadow:`0 2px 8px ${jc}44`}}>+ Catat</button>
+              </div>
+              {selectedEntries.length===0
+                ? <div style={{...s.card,padding:28,textAlign:"center",color:"#aaa",border:"2px dashed #e0d8c8"}}><div style={{fontSize:32,marginBottom:6}}>{journal.emoji}</div><p style={{margin:0,fontStyle:"italic",fontSize:12}}>Belum ada catatan hari ini</p></div>
+                : <div style={{display:"flex",flexDirection:"column",gap:8}}>{selectedEntries.map(e=><EntryCard key={e.id} entry={e} dateKey={selectedDate}/>)}</div>
+              }
+            </div>
+          )}
+
+          {/* RIWAYAT */}
+          {activeTab==="riwayat" && (
+            <div>
+              <h3 style={{margin:"0 0 12px",fontSize:15}}>Semua Catatan ({allEntries.length})</h3>
+              {allEntries.length===0
+                ? <div style={{...s.card,padding:36,textAlign:"center",color:"#aaa",border:"2px dashed #e0d8c8"}}><div style={{fontSize:36,marginBottom:8}}>📖</div><p style={{margin:0,fontStyle:"italic"}}>Jurnal masih kosong</p></div>
+                : <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {allEntries.map(entry=>{
+                      const at=getAct(entry.type);
+                      return (
+                        <div key={entry.id} style={{...s.card,borderLeft:`4px solid ${at.color}`}}>
+                          <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                            <span style={{fontSize:20,flexShrink:0}}>{at.emoji}</span>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap"}}>
+                                <span style={s.pill(at.color)}>{at.label}</span>
+                                <span style={{fontSize:11,color:"#aaa"}}>{fmtDate(entry.date)} • {entry.waktu}</span>
+                              </div>
+                              <p style={{margin:"0 0 2px",fontWeight:"bold",fontSize:13}}>{entry.tanaman}</p>
+                              {entry.catatan && <p style={{margin:0,fontSize:12,color:"#666",fontStyle:"italic"}}>{entry.catatan}</p>}
+                            </div>
+                            <div style={{display:"flex",gap:4,flexShrink:0}}>
+                              <button onClick={()=>{setActiveTab("kalender");const[y,m]=entry.date.split("-").map(Number);setViewYear(y);setViewMonth(m-1);setSelectedDate(entry.date);setTimeout(()=>openEdit(entry,entry.date),50);}} style={s.iconBtn(jc+"18",jc)}>✏️</button>
+                              <button onClick={()=>delEntry(entry.date,entry.id)} style={s.iconBtn("rgba(200,50,50,0.07)","#c23232")}>✕</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+              }
+            </div>
+          )}
+
+          {/* STATISTIK */}
+          {activeTab==="statistik" && (
+            <div>
+              <h3 style={{margin:"0 0 12px",fontSize:15}}>Ringkasan Aktivitas</h3>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                {[{val:allEntries.length,label:"Total Catatan",color:jc},{val:Object.keys(entries).filter(k=>(entries[k]||[]).length>0).length,label:"Hari Aktif",color:"#c4780a"}].map(item=>(
+                  <div key={item.label} style={{...s.card,textAlign:"center"}}>
+                    <div style={{fontSize:26,fontWeight:"bold",color:item.color}}>{item.val}</div>
+                    <div style={{fontSize:11,color:"#888"}}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{...s.card}}>
+                <h4 style={{margin:"0 0 12px",fontSize:13,color:"#666"}}>Per Jenis Aktivitas</h4>
+                {activities.map(at=>{
+                  const count=totalByType[at.id]||0, max=Math.max(...Object.values(totalByType),1);
+                  return (
+                    <div key={at.id} style={{marginBottom:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                        <span style={{fontSize:13}}>{at.emoji}</span>
+                        <span style={{fontSize:12,flex:1}}>{at.label}</span>
+                        <span style={{fontSize:13,fontWeight:"bold",color:at.color}}>{count}</span>
+                      </div>
+                      <div style={{background:"#f0ede0",borderRadius:4,height:5,overflow:"hidden"}}>
+                        <div style={{width:`${(count/max)*100}%`,height:"100%",background:at.color,borderRadius:4,transition:"width 0.5s ease"}}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{height:40}}/>
+        </div>
+      )}
+
+      {/* ══ FORM MODAL ══ */}
+      {showForm && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={e=>e.target===e.currentTarget&&setShowForm(false)}>
+          <div style={{background:"#faf7f0",borderRadius:"20px 20px 0 0",padding:"24px 20px 32px",width:"100%",maxWidth:480,boxShadow:"0 -8px 40px rgba(0,0,0,0.2)",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{width:40,height:4,background:"#ddd",borderRadius:2,margin:"0 auto 18px"}}/>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <h3 style={{margin:0,fontSize:14,color:"#2c2416"}}>{editingId?`✏️ Edit — ${fmtDate(editingDate)}`:`📝 Catat — ${selDay} ${MONTHS[selMonth-1]}`}</h3>
+              {editingId && <span style={{background:jc+"18",color:jc,fontSize:11,padding:"2px 8px",borderRadius:20,fontWeight:"bold"}}>Mode Edit</span>}
+            </div>
+            <div style={{marginBottom:12}}>
+              <label style={s.label}>⏰ Waktu</label>
+              <input type="time" value={form.waktu} onChange={e=>setForm(f=>({...f,waktu:e.target.value}))} style={s.input}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <label style={s.label}>🏷️ Jenis Aktivitas</label>
+              <ActPicker value={form.type} onChange={t=>setForm(f=>({...f,type:t}))} actList={activities}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <label style={s.label}>{journal.emoji} Lahan / Varietas *</label>
+              <input type="text" placeholder={`cth: ${journal.name} Baris A...`} value={form.tanaman} onChange={e=>setForm(f=>({...f,tanaman:e.target.value}))} style={s.input}/>
+            </div>
+            <div style={{marginBottom:18}}>
+              <label style={s.label}>📄 Catatan</label>
+              <textarea placeholder="Detail, kondisi, hasil pengamatan..." value={form.catatan} onChange={e=>setForm(f=>({...f,catatan:e.target.value}))} rows={3} style={{...s.input,resize:"none"}}/>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setShowForm(false)} style={{flex:1,padding:11,border:"1.5px solid #e0d8c8",borderRadius:12,background:"#fff",color:"#666",fontSize:13,cursor:"pointer"}}>Batal</button>
+              <button onClick={saveEntry} style={{flex:2,padding:11,border:"none",borderRadius:12,background:form.tanaman.trim()?`linear-gradient(135deg,${jc},${jc}99)`:"#ccc",color:"#fff",fontSize:13,cursor:form.tanaman.trim()?"pointer":"not-allowed",fontWeight:"bold"}}>{editingId?"✅ Simpan Perubahan":"💾 Simpan Catatan"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
